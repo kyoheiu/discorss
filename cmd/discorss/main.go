@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -12,11 +15,15 @@ import (
 )
 
 type DFeed struct {
-	Title     string
-	ItemTitle string
-	ItemDesc  string
-	Url       string
-	Published *time.Time
+	Title     string     `json:"title"`
+	ItemTitle string     `json:"item_title"`
+	ItemDesc  string     `json:"item_desc"`
+	Url       string     `json:"url"`
+	Published *time.Time `json:"published"`
+}
+
+type Req struct {
+	Content string `json:"content"`
 }
 
 func parseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
@@ -42,6 +49,8 @@ func parseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 			if item.PublishedParsed == (*time.Time)(nil) {
 				continue
 			} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-24) * time.Hour)) {
+				continue
+			} else if item.PublishedParsed.After(time.Now().Add(time.Duration(24) * time.Hour)) {
 				continue
 			}
 
@@ -76,7 +85,36 @@ func main() {
 
 	go parseFeed(&wg, feeds, ch)
 
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+
 	for dfeed := range ch {
-		fmt.Println(dfeed)
+		content := fmt.Sprintf("%s %s <%s>", dfeed.Title, dfeed.ItemTitle, dfeed.Url)
+		j, err := json.Marshal(Req{Content: content})
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		url := os.Getenv("DISCORSS_URL")
+		if len(url) == 0 {
+			fmt.Println("Cannot get webhook url.")
+			continue
+		}
+
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(j))
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		fmt.Println(dfeed.ItemTitle, dfeed.Url, resp.StatusCode)
 	}
 }
