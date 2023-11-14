@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -71,12 +70,7 @@ func parseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 }
 
 func SendFeed(w http.ResponseWriter, r *http.Request) {
-	f, err := os.ReadFile("./python/feed.txt")
-	if err != nil {
-		panic("Cannot read text file.")
-	}
-	str := string(f)
-	feeds := strings.Split(str, "\n")
+	feeds := SetFeedList()
 
 	ch := make(chan DFeed)
 
