@@ -1,4 +1,4 @@
-package main
+package feed
 
 import (
 	"bytes"
@@ -70,7 +70,7 @@ func parseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 	}
 }
 
-func main() {
+func SendFeed(w http.ResponseWriter, r *http.Request) {
 	f, err := os.ReadFile("./python/feed.txt")
 	if err != nil {
 		panic("Cannot read text file.")
