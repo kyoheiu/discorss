@@ -25,7 +25,7 @@ type Req struct {
 	Content string `json:"content"`
 }
 
-func parseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
+func ParseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 	defer wg.Done()
 	defer close(ch)
 
@@ -77,7 +77,7 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go parseFeed(&wg, feeds, ch)
+	go ParseFeed(&wg, feeds, ch)
 
 	client := http.Client{
 		Timeout: 30 * time.Second,
