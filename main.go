@@ -3,6 +3,8 @@ package init
 import (
 	feed "github.com/kyoheiu/discorss/feed"
 
+	_ "time/tzdata"
+
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 )
 
