@@ -43,16 +43,17 @@ func ParseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 		}
 		items := feed.Items
 		for _, item := range items {
-			var desc string
 
+			timeLimit := 8
 			if item.PublishedParsed == (*time.Time)(nil) {
 				continue
-			} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-24) * time.Hour)) {
+			} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-(timeLimit)) * time.Hour)) {
 				continue
-			} else if item.PublishedParsed.After(time.Now().Add(time.Duration(24) * time.Hour)) {
+			} else if item.PublishedParsed.After(time.Now().Add(time.Duration(timeLimit) * time.Hour)) {
 				continue
 			}
 
+			var desc string
 			if len(item.Description) >= 50 {
 				desc = item.Description[:50]
 			} else {
