@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyoheiu/discorss/feed"
+	dfeed "github.com/kyoheiu/discorss/dfeed"
 	"github.com/mmcdole/gofeed"
 )
 
@@ -13,26 +13,44 @@ func TestParseFeed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	feeds := feed.SetFeedList()
+	feeds := dfeed.SetFeedList()
 
 	fp := gofeed.NewParser()
-	feed, err := fp.ParseURLWithContext(feeds[0], ctx)
+	for _, f := range feeds {
+		feed, err := fp.ParseURLWithContext(f, ctx)
+		if err != nil {
+			t.Error("cannot get or parse feed: " + f)
+			return
+		}
+		items := feed.Items
+		for _, item := range items {
+			d, err := dfeed.ParseFeed(feed.Title, item)
+			if err != nil {
+				t.Error(err)
+				continue
+			}
+			t.Log(d)
+		}
+	}
+}
+
+func TestEmptyFeed(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	fp := gofeed.NewParser()
+	feed, err := fp.ParseURLWithContext("", ctx)
 	if err != nil {
-		t.Error("Cannot get or parse feed")
+		t.Error("cannot get or parse feed of empty URL")
+		return
 	}
 	items := feed.Items
 	for _, item := range items {
-		if item.PublishedParsed == (*time.Time)(nil) {
-			t.Log("Cannot get published date: ", item.Title)
-			continue
-		} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-24) * time.Hour)) {
-			t.Log("Too old: ", item.Title)
-			continue
-		} else if item.PublishedParsed.After(time.Now().Add(time.Duration(24) * time.Hour)) {
-			t.Log("Too new: ", item.Title)
+		d, err := dfeed.ParseFeed(feed.Title, item)
+		if err != nil {
+			t.Error(err)
 			continue
 		}
-
-		t.Error(item.Title)
+		t.Log(d)
 	}
 }

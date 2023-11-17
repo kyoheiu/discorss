@@ -1,9 +1,10 @@
-package feed
+package dfeed
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,7 +26,34 @@ type Req struct {
 	Content string `json:"content"`
 }
 
-func ParseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
+func ParseFeed(siteTitle string, item *gofeed.Item) (*DFeed, error) {
+	//Send feed 3 times in a day (24/3)
+	timeLimit := 8
+
+	if item.PublishedParsed == nil {
+		return nil, errors.New("cannot get published date: " + item.Title)
+	} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-(timeLimit)) * time.Hour)) {
+		return nil, errors.New("too old post: " + item.Title)
+	} else if item.PublishedParsed.After(time.Now().Add(time.Duration(timeLimit) * time.Hour)) {
+		return nil, errors.New("too new post: " + item.Title)
+	}
+
+	var desc string
+	if len(item.Description) >= 50 {
+		desc = item.Description[:50]
+	} else {
+		desc = item.Description
+	}
+	return &DFeed{
+		Title:     siteTitle,
+		ItemTitle: item.Title,
+		ItemDesc:  desc,
+		Url:       item.Link,
+		Published: item.PublishedParsed,
+	}, nil
+}
+
+func RunParsing(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 	defer wg.Done()
 	defer close(ch)
 
@@ -40,32 +68,17 @@ func ParseFeed(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 		feed, err := fp.ParseURLWithContext(v, ctx)
 		if err != nil {
 			fmt.Println("Cannot get or parse feed: ", v)
+			continue
 		}
 		items := feed.Items
 		for _, item := range items {
-
-			timeLimit := 8
-			if item.PublishedParsed == (*time.Time)(nil) {
-				continue
-			} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-(timeLimit)) * time.Hour)) {
-				continue
-			} else if item.PublishedParsed.After(time.Now().Add(time.Duration(timeLimit) * time.Hour)) {
+			d, err := ParseFeed(feed.Title, item)
+			if err != nil {
+				fmt.Println(err)
 				continue
 			}
 
-			var desc string
-			if len(item.Description) >= 50 {
-				desc = item.Description[:50]
-			} else {
-				desc = item.Description
-			}
-			ch <- DFeed{
-				Title:     feed.Title,
-				ItemTitle: item.Title,
-				ItemDesc:  desc,
-				Url:       item.Link,
-				Published: item.PublishedParsed,
-			}
+			ch <- *d
 		}
 	}
 }
@@ -78,7 +91,7 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go ParseFeed(&wg, feeds, ch)
+	go RunParsing(&wg, feeds, ch)
 
 	client := http.Client{
 		Timeout: 30 * time.Second,

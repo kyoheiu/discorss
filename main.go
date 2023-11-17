@@ -1,7 +1,7 @@
 package init
 
 import (
-	feed "github.com/kyoheiu/discorss/feed"
+	feed "github.com/kyoheiu/discorss/dfeed"
 
 	_ "time/tzdata"
 
