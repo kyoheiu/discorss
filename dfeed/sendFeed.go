@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -45,8 +44,7 @@ func ParseItem(siteTitle string, item *gofeed.Item) (*DFeed, error) {
 	}, nil
 }
 
-func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
-	defer wg.Done()
+func GetFeedConcurrently(feeds []string, ch chan DFeed) {
 	defer close(ch)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -82,9 +80,7 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 
 	ch := make(chan DFeed)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go GetFeedConcurrently(&wg, feeds, ch)
+	go GetFeedConcurrently(feeds, ch)
 
 	client := http.Client{
 		Timeout: 30 * time.Second,
@@ -118,6 +114,4 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Println(dfeed.ItemTitle, dfeed.Url, resp.StatusCode)
 	}
-
-	wg.Wait()
 }
