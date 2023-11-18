@@ -62,23 +62,25 @@ func AddFeedToChannel(feeds []string, ch chan DFeed) {
 	fp := gofeed.NewParser()
 
 	for _, feed := range feeds {
+		f := feed
 		wg.Add(1)
-		go func(feed string) {
-			parsed, err := fp.ParseURLWithContext(feed, ctx)
+		go func() {
+			defer wg.Done()
+			parsed, err := fp.ParseURLWithContext(f, ctx)
 			if err != nil {
-				fmt.Println("cannot parse url: " + feed)
+				fmt.Println(err)
 				return
 			}
 			items := parsed.Items
 			for _, item := range items {
 				d, err := ParseItem(parsed.Title, item)
 				if err != nil {
-					continue
+					fmt.Println(err)
+					return
 				}
 				ch <- *d
 			}
-			wg.Done()
-		}(feed)
+		}()
 	}
 
 	wg.Wait()
@@ -88,6 +90,7 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 	feeds := SetFeedList()
 
 	ch := make(chan DFeed)
+	defer close(ch)
 
 	AddFeedToChannel(feeds, ch)
 
