@@ -76,7 +76,7 @@ func AddFeedToChannel(feeds []string, ch chan DFeed) {
 				d, err := ParseItem(parsed.Title, item)
 				if err != nil {
 					fmt.Println(err)
-					return
+					continue
 				}
 				ch <- *d
 			}
