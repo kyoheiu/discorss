@@ -17,7 +17,6 @@ import (
 type DFeed struct {
 	Title     string     `json:"title"`
 	ItemTitle string     `json:"item_title"`
-	ItemDesc  string     `json:"item_desc"`
 	Url       string     `json:"url"`
 	Published *time.Time `json:"published"`
 }
@@ -38,16 +37,9 @@ func ParseItem(siteTitle string, item *gofeed.Item) (*DFeed, error) {
 		return nil, errors.New("too new post: " + item.Title)
 	}
 
-	var desc string
-	if len(item.Description) >= 50 {
-		desc = item.Description[:50]
-	} else {
-		desc = item.Description
-	}
 	return &DFeed{
 		Title:     siteTitle,
 		ItemTitle: item.Title,
-		ItemDesc:  desc,
 		Url:       item.Link,
 		Published: item.PublishedParsed,
 	}, nil
