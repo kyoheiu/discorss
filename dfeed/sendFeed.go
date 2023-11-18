@@ -54,21 +54,26 @@ func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 	fp := gofeed.NewParser()
 
 	for _, feed := range feeds {
+		success := 0
+		skipped := 0
 		parsed, err := fp.ParseURLWithContext(feed, ctx)
 		if err != nil {
 			fmt.Println(err)
-			return
+			continue
 		}
 		items := parsed.Items
 		for _, item := range items {
 			d, err := ParseItem(parsed.Title, item)
 			if err != nil {
-				fmt.Println(err)
+				skipped += 1
 				continue
 			}
-			fmt.Println("SUCCESS: " + d.ItemTitle)
-			ch <- *d
+			if d != nil {
+				ch <- *d
+				success += 1
+			}
 		}
+		fmt.Println(parsed.Title + " SUCCESS: " + fmt.Sprint(success) + " SKIPPED: " + fmt.Sprint(skipped))
 	}
 }
 
@@ -80,7 +85,6 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go GetFeedConcurrently(&wg, feeds, ch)
-	wg.Wait()
 
 	client := http.Client{
 		Timeout: 30 * time.Second,
@@ -114,4 +118,6 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Println(dfeed.ItemTitle, dfeed.Url, resp.StatusCode)
 	}
+
+	wg.Wait()
 }

@@ -54,8 +54,8 @@ func TestGetFeedConcurrently(t *testing.T) {
 	ch := make(chan dfeed.DFeed)
 	wg.Add(1)
 	go dfeed.GetFeedConcurrently(&wg, feeds, ch)
-	wg.Wait()
 	for f := range ch {
 		fmt.Println(f.ItemTitle)
 	}
+	wg.Wait()
 }
