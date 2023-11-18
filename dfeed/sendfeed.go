@@ -26,7 +26,7 @@ type Req struct {
 	Content string `json:"content"`
 }
 
-func ParseFeed(siteTitle string, item *gofeed.Item) (*DFeed, error) {
+func ParseItem(siteTitle string, item *gofeed.Item) (*DFeed, error) {
 	//Send feed 3 times in a day (24/3)
 	timeLimit := 8
 
@@ -53,34 +53,35 @@ func ParseFeed(siteTitle string, item *gofeed.Item) (*DFeed, error) {
 	}, nil
 }
 
-func RunParsing(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
-	defer wg.Done()
+func AddFeedToChannel(feeds []string, ch chan DFeed) {
+	var wg sync.WaitGroup
 	defer close(ch)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-
 	fp := gofeed.NewParser()
-	for _, v := range feeds {
-		if len(v) == 0 {
-			continue
-		}
-		feed, err := fp.ParseURLWithContext(v, ctx)
-		if err != nil {
-			fmt.Println("Cannot get or parse feed: ", v)
-			continue
-		}
-		items := feed.Items
-		for _, item := range items {
-			d, err := ParseFeed(feed.Title, item)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
 
-			ch <- *d
-		}
+	for _, feed := range feeds {
+		wg.Add(1)
+		go func(feed string) {
+			parsed, err := fp.ParseURLWithContext(feed, ctx)
+			if err != nil {
+				fmt.Println("cannot parse url: " + feed)
+				return
+			}
+			items := parsed.Items
+			for _, item := range items {
+				d, err := ParseItem(parsed.Title, item)
+				if err != nil {
+					continue
+				}
+				ch <- *d
+			}
+			wg.Done()
+		}(feed)
 	}
+
+	wg.Wait()
 }
 
 func SendFeed(w http.ResponseWriter, r *http.Request) {
@@ -88,10 +89,7 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 
 	ch := make(chan DFeed)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go RunParsing(&wg, feeds, ch)
+	AddFeedToChannel(feeds, ch)
 
 	client := http.Client{
 		Timeout: 30 * time.Second,
