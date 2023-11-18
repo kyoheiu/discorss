@@ -53,37 +53,31 @@ func ParseItem(siteTitle string, item *gofeed.Item) (*DFeed, error) {
 	}, nil
 }
 
-func AddFeedToChannel(feeds []string, ch chan DFeed) {
-	var wg sync.WaitGroup
+func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
+	defer wg.Done()
 	defer close(ch)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	fp := gofeed.NewParser()
 
 	for _, feed := range feeds {
-		f := feed
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			parsed, err := fp.ParseURLWithContext(f, ctx)
+		parsed, err := fp.ParseURLWithContext(feed, ctx)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		items := parsed.Items
+		for _, item := range items {
+			d, err := ParseItem(parsed.Title, item)
 			if err != nil {
 				fmt.Println(err)
-				return
+				continue
 			}
-			items := parsed.Items
-			for _, item := range items {
-				d, err := ParseItem(parsed.Title, item)
-				if err != nil {
-					fmt.Println(err)
-					continue
-				}
-				ch <- *d
-			}
-		}()
+			fmt.Println("SUCCESS: " + d.ItemTitle)
+			ch <- *d
+		}
 	}
-
-	wg.Wait()
 }
 
 func SendFeed(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +86,10 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 	ch := make(chan DFeed)
 	defer close(ch)
 
-	AddFeedToChannel(feeds, ch)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go GetFeedConcurrently(&wg, feeds, ch)
+	wg.Wait()
 
 	client := http.Client{
 		Timeout: 30 * time.Second,

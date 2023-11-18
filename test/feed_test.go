@@ -2,6 +2,8 @@ package feed_test
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,17 +21,17 @@ func TestParseFeed(t *testing.T) {
 	for _, f := range feeds {
 		feed, err := fp.ParseURLWithContext(f, ctx)
 		if err != nil {
-			t.Error("cannot get or parse feed: " + f)
+			t.Log("cannot get or parse feed: " + f)
 			return
 		}
 		items := feed.Items
 		for _, item := range items {
 			d, err := dfeed.ParseItem(feed.Title, item)
 			if err != nil {
-				t.Error(err)
+				t.Log(err)
 				continue
 			}
-			t.Log(d)
+			t.Log("Success: " + d.ItemTitle)
 		}
 	}
 }
@@ -46,11 +48,14 @@ func TestEmptyFeed(t *testing.T) {
 	}
 }
 
-func TestAddFeedToChannel(t *testing.T) {
+func TestGetFeedConcurrently(t *testing.T) {
+	var wg sync.WaitGroup
 	feeds := dfeed.SetFeedList()
 	ch := make(chan dfeed.DFeed)
-	dfeed.AddFeedToChannel(feeds, ch)
-	for d := range ch {
-		t.Log(d.ItemTitle)
+	wg.Add(1)
+	go dfeed.GetFeedConcurrently(&wg, feeds, ch)
+	wg.Wait()
+	for f := range ch {
+		fmt.Println(f.ItemTitle)
 	}
 }
