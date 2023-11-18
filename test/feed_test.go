@@ -24,7 +24,7 @@ func TestParseFeed(t *testing.T) {
 		}
 		items := feed.Items
 		for _, item := range items {
-			d, err := dfeed.ParseFeed(feed.Title, item)
+			d, err := dfeed.ParseItem(feed.Title, item)
 			if err != nil {
 				t.Error(err)
 				continue
@@ -46,11 +46,17 @@ func TestEmptyFeed(t *testing.T) {
 	}
 	items := feed.Items
 	for _, item := range items {
-		d, err := dfeed.ParseFeed(feed.Title, item)
+		d, err := dfeed.ParseItem(feed.Title, item)
 		if err != nil {
 			t.Error(err)
 			continue
 		}
 		t.Log(d)
 	}
+}
+
+func TestAddFeedToChannel(t *testing.T) {
+	feeds := dfeed.SetFeedList()
+	ch := make(chan dfeed.DFeed)
+	dfeed.AddFeedToChannel(feeds, ch)
 }
