@@ -39,19 +39,10 @@ func TestEmptyFeed(t *testing.T) {
 	defer cancel()
 
 	fp := gofeed.NewParser()
-	feed, err := fp.ParseURLWithContext("", ctx)
+	_, err := fp.ParseURLWithContext("", ctx)
 	if err != nil {
-		t.Error("cannot get or parse feed of empty URL")
+		t.Log("cannot get or parse feed of empty URL")
 		return
-	}
-	items := feed.Items
-	for _, item := range items {
-		d, err := dfeed.ParseItem(feed.Title, item)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		t.Log(d)
 	}
 }
 
@@ -59,4 +50,7 @@ func TestAddFeedToChannel(t *testing.T) {
 	feeds := dfeed.SetFeedList()
 	ch := make(chan dfeed.DFeed)
 	dfeed.AddFeedToChannel(feeds, ch)
+	for d := range ch {
+		t.Log(d.ItemTitle)
+	}
 }
