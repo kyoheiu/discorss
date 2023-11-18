@@ -84,7 +84,6 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 	feeds := SetFeedList()
 
 	ch := make(chan DFeed)
-	defer close(ch)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
