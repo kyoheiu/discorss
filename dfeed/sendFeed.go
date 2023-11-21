@@ -2,12 +2,12 @@ package dfeed
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -44,34 +44,42 @@ func ParseItem(siteTitle string, item *gofeed.Item) (*DFeed, error) {
 	}, nil
 }
 
-func GetFeedConcurrently(feeds []string, ch chan DFeed) {
-	defer close(ch)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
+	// First, add tasks.
+	wg.Add(len(feeds))
 	fp := gofeed.NewParser()
 
+	// wait for all goroutines to finish and close the channel.
+	go func() {
+		wg.Wait()
+		fmt.Println("Completed: Closing channel.")
+		close(ch)
+	}()
+
 	for _, feed := range feeds {
-		success := 0
-		skipped := 0
-		parsed, err := fp.ParseURLWithContext(feed, ctx)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		items := parsed.Items
-		for _, item := range items {
-			d, err := ParseItem(parsed.Title, item)
+		go func(feed string) {
+			defer wg.Done()
+			success := 0
+			skipped := 0
+			parsed, err := fp.ParseURL(feed)
 			if err != nil {
-				skipped += 1
-				continue
+				fmt.Println(err)
+				return
 			}
-			if d != nil {
-				ch <- *d
-				success += 1
+			items := parsed.Items
+			for _, item := range items {
+				d, err := ParseItem(parsed.Title, item)
+				if err != nil {
+					skipped += 1
+					continue
+				}
+				if d != nil {
+					ch <- *d
+					success += 1
+				}
 			}
-		}
-		fmt.Println(parsed.Title + " SUCCESS: " + fmt.Sprint(success) + " SKIPPED: " + fmt.Sprint(skipped))
+			fmt.Println(parsed.Title + " SUCCESS: " + fmt.Sprint(success) + " SKIPPED: " + fmt.Sprint(skipped))
+		}(feed)
 	}
 }
 
@@ -79,8 +87,11 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 	feeds := SetFeedList()
 
 	ch := make(chan DFeed)
+	var wg sync.WaitGroup
 
-	go GetFeedConcurrently(feeds, ch)
+	// Inside this function, tasks will be added, consumed and waited for their finishing.
+	// Also data will be sent to channel, and the channel will be closed.
+	GetFeedConcurrently(&wg, feeds, ch)
 
 	client := http.Client{
 		Timeout: 30 * time.Second,

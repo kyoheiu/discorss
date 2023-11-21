@@ -3,6 +3,7 @@ package feed_test
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -50,7 +51,8 @@ func TestEmptyFeed(t *testing.T) {
 func TestGetFeedConcurrently(t *testing.T) {
 	feeds := dfeed.SetFeedList()
 	ch := make(chan dfeed.DFeed)
-	go dfeed.GetFeedConcurrently(feeds, ch)
+	var wg sync.WaitGroup
+	dfeed.GetFeedConcurrently(&wg, feeds, ch)
 	for f := range ch {
 		fmt.Println(f.ItemTitle)
 	}
