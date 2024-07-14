@@ -15,10 +15,10 @@ func TestParseFeed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	feeds := dfeed.SetFeedList()
+	config := dfeed.SetConfig()
 
 	fp := gofeed.NewParser()
-	for _, f := range feeds {
+	for _, f := range config.Feeds {
 		feed, err := fp.ParseURLWithContext(f, ctx)
 		if err != nil {
 			t.Log("cannot get or parse feed: " + f)
@@ -26,7 +26,7 @@ func TestParseFeed(t *testing.T) {
 		}
 		items := feed.Items
 		for _, item := range items {
-			d, err := dfeed.ParseItem(feed.Title, item)
+			d, err := dfeed.ParseItem(feed.Title, item, config.Frequency)
 			if err != nil {
 				t.Log(err)
 				continue
@@ -49,10 +49,10 @@ func TestEmptyFeed(t *testing.T) {
 }
 
 func TestGetFeedConcurrently(t *testing.T) {
-	feeds := dfeed.SetFeedList()
+	config := dfeed.SetConfig()
 	ch := make(chan dfeed.DFeed)
 	var wg sync.WaitGroup
-	dfeed.GetFeedConcurrently(&wg, feeds, ch)
+	dfeed.GetFeedConcurrently(&wg, config, ch)
 	for f := range ch {
 		fmt.Println(f.ItemTitle)
 	}

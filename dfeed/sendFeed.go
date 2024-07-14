@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -24,15 +23,15 @@ type Req struct {
 	Content string `json:"content"`
 }
 
-func ParseItem(siteTitle string, item *gofeed.Item) (*DFeed, error) {
-	//Send feed 3 times in a day (24/3)
-	timeLimit := 8
+func ParseItem(siteTitle string, item *gofeed.Item, frequency int8) (*DFeed, error) {
+	// interval to send feed
+	interval := 24 / frequency
 
 	if item.PublishedParsed == nil {
 		return nil, errors.New("cannot get published date: " + item.Title)
-	} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-(timeLimit)) * time.Hour)) {
+	} else if item.PublishedParsed.Before(time.Now().Add(time.Duration(-(interval)) * time.Hour)) {
 		return nil, errors.New("too old post: " + item.Title)
-	} else if item.PublishedParsed.After(time.Now().Add(time.Duration(timeLimit) * time.Hour)) {
+	} else if item.PublishedParsed.After(time.Now().Add(time.Duration(interval) * time.Hour)) {
 		return nil, errors.New("too new post: " + item.Title)
 	}
 
@@ -44,9 +43,9 @@ func ParseItem(siteTitle string, item *gofeed.Item) (*DFeed, error) {
 	}, nil
 }
 
-func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
+func GetFeedConcurrently(wg *sync.WaitGroup, config Config, ch chan DFeed) {
 	// First, add tasks.
-	wg.Add(len(feeds))
+	wg.Add(len(config.Feeds))
 	fp := gofeed.NewParser()
 
 	// wait for all goroutines to finish and close the channel.
@@ -56,7 +55,7 @@ func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 		close(ch)
 	}()
 
-	for _, feed := range feeds {
+	for _, feed := range config.Feeds {
 		go func(feed string) {
 			defer wg.Done()
 			success := 0
@@ -68,7 +67,7 @@ func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 			}
 			items := parsed.Items
 			for _, item := range items {
-				d, err := ParseItem(parsed.Title, item)
+				d, err := ParseItem(parsed.Title, item, config.Frequency)
 				if err != nil {
 					skipped += 1
 					continue
@@ -83,15 +82,15 @@ func GetFeedConcurrently(wg *sync.WaitGroup, feeds []string, ch chan DFeed) {
 	}
 }
 
-func SendFeed(w http.ResponseWriter, r *http.Request) {
-	feeds := SetFeedList()
+func SendFeed() {
+	config := SetConfig()
 
 	ch := make(chan DFeed)
 	var wg sync.WaitGroup
 
 	// Inside this function, tasks will be added, consumed and waited for their finishing.
 	// Also data will be sent to channel, and the channel will be closed.
-	GetFeedConcurrently(&wg, feeds, ch)
+	GetFeedConcurrently(&wg, config, ch)
 
 	client := http.Client{
 		Timeout: 30 * time.Second,
@@ -105,13 +104,7 @@ func SendFeed(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		url := os.Getenv("DISCORSS_URL")
-		if len(url) == 0 {
-			fmt.Println("Cannot get webhook url.")
-			continue
-		}
-
-		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(j))
+		req, err := http.NewRequest(http.MethodPost, config.Hook, bytes.NewReader(j))
 		if err != nil {
 			fmt.Println(err)
 			continue
